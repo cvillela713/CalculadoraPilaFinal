@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluador de Expresiones</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .container {
+            width: 500px;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+        }
+        .input-field, .output, .variables-section, .error-section {
+            margin: 15px 0;
+        }
+        #output {
+            border: 1px solid #ccc;
+            padding: 10px;
+            min-height: 50px;
+            background-color: #e6ffe6;
+        }
+        .error-section {
+            border: 1px solid #f00;
+            padding: 10px;
+            min-height: 50px;
+            background-color: #ffe6e6;
+        }
+        .buttons, .num-buttons, .op-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: center;
+        }
+        button {
+            width: 30px;
+            height: 30px;
+            font-size: 16px;
+        }
+        .variables-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 5px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Evaluador de Expresiones</h1>
+
+    <div class="variables-section">
+        <label for="variables">Variables disponibles:</label>
+        <select id="variables">
+            <option value="">Seleccionar...</option>
+        </select>
+        <input type="text" id="varName" placeholder="Nombre de la variable" />
+        <input type="text" id="varValue" placeholder="Valor de la variable" />
+        <button onclick="crearVariable()">Crear Variable</button>
+    </div>
+
+    <div class="input-field">
+        <label for="expresion">Expresión:</label>
+        <input type="text" id="expresion" placeholder="Ej: 3 + 2 * @X" />
+    </div>
+
+    <button onclick="evaluar()">Evaluar</button>
+
+    <div class="buttons">
+        <div class="op-buttons">
+            <button onclick="agregarOperador('+')">+</button>
+            <button onclick="agregarOperador('-')">-</button>
+            <button onclick="agregarOperador('*')">*</button>
+            <button onclick="agregarOperador('/')">/</button>
+            <button onclick="agregarOperador('(')">(</button>
+            <button onclick="agregarOperador(')')">)</button>
+            <button onclick="agregarOperador('@')">@</button>
+        </div>
+        <div class="num-buttons">
+            <button onclick="agregarOperador('1')">1</button>
+            <button onclick="agregarOperador('2')">2</button>
+            <button onclick="agregarOperador('3')">3</button>
+            <button onclick="agregarOperador('4')">4</button>
+            <button onclick="agregarOperador('5')">5</button>
+            <button onclick="agregarOperador('6')">6</button>
+            <button onclick="agregarOperador('7')">7</button>
+            <button onclick="agregarOperador('8')">8</button>
+            <button onclick="agregarOperador('9')">9</button>
+            <button onclick="agregarOperador('0')">0</button>
+        </div>
+    </div>
+
+    <div id="output" class="output"></div>
+    <div id="errorSection" class="error-section"></div>
+</div>
+
+<script>
+    function agregarOperador(op) {
+        document.getElementById("expresion").value += op;
+    }
+
+    function actualizarListaVariables() {
+    const variablesSelect = document.getElementById("variables");
+    variablesSelect.innerHTML = '<option value="">Seleccionar...</option>';
+    fetch('/api/variables')
+        .then(response => response.json())
+        .then(data => {
+            // Iterar sobre el objeto devuelto por el servidor
+            Object.entries(data).forEach(([nombre, valor]) => {
+                const option = document.createElement("option");
+                option.value = nombre;
+                option.text = `${nombre} (${valor})`;
+                variablesSelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            document.getElementById("errorSection").innerHTML = "Error al cargar variables: " + error.message;
+        });
+}
+
+    function crearVariable() {
+        const nombre = document.getElementById("varName").value;
+        const valor = document.getElementById("varValue").value;
+
+        fetch('/api/crearVariable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre: nombre, valor: valor })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.mensaje) {
+                    document.getElementById("output").innerHTML = data.mensaje;
+                    actualizarListaVariables();
+                }
+            })
+            .catch(error => {
+                document.getElementById("errorSection").innerHTML = "Error al crear variable: " + error.message;
+            });
+    }
+
+    function evaluar() {
+    document.getElementById("errorSection").innerHTML = ""; // Limpiar errores previos
+    document.getElementById("output").innerHTML = ""; // Limpiar salida previa
+
+    const expresion = document.getElementById("expresion").value;
+
+    fetch('/api/evaluar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expresion: expresion })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById("errorSection").innerHTML = data.error;
+            } else {
+                // Mostrar resultado, pila de operandos y operadores
+                const operandos = data.pilaOperandos.join(", ");
+                const operadores = data.pilaOperadores.join(", ");
+                document.getElementById("output").innerHTML = `
+                    <strong>Resultado:</strong> ${data.resultado}<br>
+                    <strong>Pila de operandos:</strong> [${operandos}]<br>
+                    <strong>Pila de operadores:</strong> [${operadores}]
+                `;
+            }
+        })
+        .catch(error => {
+            document.getElementById("errorSection").innerHTML = "Error al evaluar la expresión: " + error.message;
+        });
+}
+
+    // Cargar variables al inicio
+    window.onload = actualizarListaVariables;
+</script>
+</body>
+</html>
